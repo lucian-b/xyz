@@ -1,0 +1,27 @@
+[project]
+name = "lab1"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "jupyterlab-code-formatter>=3.0.2",
+    "jupyterlab-execute-time>=3.2.0",
+    "jupyterlab-lsp>=5.1.0",
+    "jupyterlab>=4.2.5",
+    "matplotlib>=3.9.2",
+    "python-lsp-server>=1.12.0",
+    "rope>=1.13.0",
+    "ruff>=0.6.7",
+    "torch>=2.4.1",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# pycodestyle, Pyflakes, pyupgrade, flake8-bugbear, flake8-simplify, isort,
+select = [ "E", "F", "UP", "B", "SIM", "I" ]
+ignore = [
+  "UP032",  # use f-string instead of `format` call
+]
