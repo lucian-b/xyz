@@ -9,37 +9,41 @@ class MDP:
     def __init__(self, blueprint: str):
         bprint = Blueprint.from_str(blueprint)
         self.world = bprint.map_
-        self.S0_yx = bprint.s0_yx
+        self.X0_yx = bprint.s0_yx
         self.goals_yx = bprint.goal_yx
         self.rspec = bprint.rspec
-        self.a2m = {
-            0: np.array([-1, 0]),
-            1: np.array([0, 1]),
-            2: np.array([1, 0]),
-            3: np.array([0, -1]),
-        }
 
-        # set of reachable states and a mapping
-        self._S = list(zip(*np.where(self.world != "x"), strict=True))
-        self._i2S = {i: s for i, s in enumerate(self._S)}
-        self._S2i = {s: i for i, s in enumerate(self._S)}
+        # set of reachable states in coords (y,x)
+        self._yx = list(zip(*np.where(self.world != "x"), strict=True))
+        # mapping from states (as indices) 2 states as coords
+        self._x2yx = {i: s for i, s in enumerate(self._yx)}
+        self._yx2x = {s: i for i, s in enumerate(self._yx)}
 
-        self.SA_space = (len(self._S), len(self.a2m))
+        # actions (4 actions by default)
+        self._U = [0, 1] if self.world.shape[0] == 3 else [0, 1, 2, 3]
 
         # compute the set of states S, the Psas and the Rsas
         self._Psas, self._Rsas = self._get_mdp()
 
     @property
-    def num_states(self):
-        return len(self.S)
+    def nX(self):
+        return len(self._yx)
 
     @property
-    def num_actions(self):
-        return len(self.a2m)
+    def nU(self):
+        return len(self._U)
 
     @property
-    def S(self):
-        return list(self._i2S.keys())
+    def nXU(self):
+        return (self.nX, self.nU)
+
+    @property
+    def X(self):
+        return list(self._x2yx.keys())
+
+    @property
+    def U(self):
+        return self._U
 
     @property
     def Psas(self):
@@ -60,33 +64,41 @@ class MDP:
 
     def get_Pss(self, π=None):
         if π is None:
-            return self._Psas.sum(1) / len(self.a2m)
+            return self._Psas.sum(1) / self.nU
         else:
             return (self._Psas * π[:, :, None]).sum(1)
 
     def get_Rss(self, π=None):
         if π is None:
-            return self._Rsas.sum(1) / len(self.a2m)
+            return self._Rsas.sum(1) / self.nU
         else:
             return (self._Rsas * π[:, :, None]).sum(1)
 
     def _get_mdp(self):
+        a2m = {
+            0: np.array([-1, 0]),
+            1: np.array([0, 1]),
+            2: np.array([1, 0]),
+            3: np.array([0, -1]),
+        }
+        if self.nU == 2:
+            a2m = {0: np.array([0, 1]), 1: np.array([0, -1])}
+
         w = self.world.copy()
         w[w == "s"] = " "  # we treat S0 as a usual state
 
-        N = len(self._S)
-        P = np.zeros((N, len(self.a2m), N))
-        R = np.zeros((N, len(self.a2m), N))
-        for yx in self._S:
-            s = self._S2i[yx]
+        P = np.zeros((self.nX, self.nU, self.nX))
+        R = np.zeros((self.nX, self.nU, self.nX))
+        for yx in self._yx:
+            x = self._yx2x[yx]
 
             # absorbing state
             if np.char.isupper(w[yx]):
-                P[s, :, s] = 1.0
-                R[s, :, s] = 0.0
+                P[x, :, x] = 1.0
+                R[x, :, x] = 0.0
                 continue
 
-            for a, move in self.a2m.items():
+            for u, move in a2m.items():
                 yx_ = tuple(np.array(yx) + move)
 
                 if w[yx_] == "x":
@@ -95,9 +107,9 @@ class MDP:
                 else:
                     r = self.rspec[w[yx_]]
 
-                s_ = self._S2i[yx_]
-                P[s, a, s_] = 1
-                R[s, a, s_] = r
+                x_ = self._yx2x[yx_]
+                P[x, u, x_] = 1
+                R[x, u, x_] = r
         P.flags.writeable = False
         R.flags.writeable = False
         return P, R
@@ -105,19 +117,31 @@ class MDP:
     # what follows are methods
     # meant to be used by a game implementation
 
-    def is_goal(self, s):
-        if isinstance(s, tuple):
-            return np.char.isupper(self.world[s])
+    def is_goal(self, x):
+        if isinstance(x, tuple):
+            return np.char.isupper(self.world[x])
         else:
-            return np.char.isupper(self.world[self._i2S[s]])
+            return np.char.isupper(self.world[self._x2yx[x]])
 
     def get_init_states(self):
-        return [self._S2i[x] for x in self.S0_yx]
+        return [self._yx2x[x] for x in self.X0_yx]
 
     def get_goal_states(self):
-        return [self._S2i[x] for x in self.goals_yx]
+        return [self._yx2x[x] for x in self.goals_yx]
 
     # some eye candy
+
+    @staticmethod
+    def qsa_lineplot(Q):
+        fig, ax = plt.subplots(figsize=(5, 3.75), layout="constrained")
+        nX, nU = Q.shape
+        # xs = np.arange(-0.5, nX - 0.5, 1)
+        xs = np.arange(nX)
+        us = ("top", "right", "down", "left") if nU == 4 else ("right", "left")
+        for qu, u in zip(Q.t(), us, strict=True):
+            print(qu, xs)
+            ax.step(xs, qu, where="pre", label=f"Q(x, {u})")
+        ax.legend()
 
     def display(self, values=None, cmap="Blues", ax=None, vmin=None, vmax=None):
         palette = np.array(
@@ -148,9 +172,10 @@ class MDP:
 
         # plot the goal
         for y, x in self.goals_yx:
-            ax.text(x, y, "G", ha="center", va="center", color="w")
-        for y, x in self.S0_yx:
-            ax.text(x, y, "S", ha="center", va="center")
+            goal = self.world[y, x]
+            ax.text(x, y, goal, ha="center", va="center", color="w")
+        for y, x in self.X0_yx:
+            ax.text(x, y, "s", ha="center", va="center")
 
         if fig is not None:
             divider = make_axes_locatable(ax)
@@ -167,7 +192,10 @@ class MDP:
 
     def __repr__(self):
         s = "\n".join(["".join(line) for line in self.world])
-        s += "\nActions: 0: up, 1: right, 2: down, 3: left\n"
+        if self.nU == 2:
+            s += "\nActions: 0: right, 1: left\n"
+        else:
+            s += "\nActions: 0: up, 1: right, 2: down, 3: left\n"
         return s
 
 
@@ -216,7 +244,7 @@ PHI = {
 }
 
 
-class Env:
+class Sim:
     def __init__(self, mdp, phi="identity"):
         self.mdp = mdp
         self.phi = PHI[phi](mdp)
