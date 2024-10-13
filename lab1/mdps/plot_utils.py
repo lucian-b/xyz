@@ -11,11 +11,11 @@ def plot_policy(mdp, π, V):
     # r"$\blacktriangledown$", r"$\blacktriangleleft$"]
     action_names = [r"$\uparrow$", r"$\rightarrow$", r"$\downarrow$", r"$\leftarrow$"]
     offsets = [(-0.05, -0.2), (0.15, -0.05), (-0.05, 0.15), (-0.2, -0.05)]
-    for state_idx in mdp.S:
+    for state_idx in mdp.X:
         if mdp.is_goal(state_idx):
             continue
 
-        y, x = mdp._i2S[state_idx]
+        y, x = mdp._x2yx[state_idx]
         # plot argmax for all optimal actions
         a_stars = np.flatnonzero(π[state_idx] == π[state_idx].max())
         for aidx in a_stars:

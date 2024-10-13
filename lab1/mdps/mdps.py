@@ -130,20 +130,8 @@ class MDP:
         return [self._yx2x[x] for x in self.goals_yx]
 
     # some eye candy
-
     @staticmethod
-    def qsa_lineplot(Q):
-        fig, ax = plt.subplots(figsize=(5, 3.75), layout="constrained")
-        nX, nU = Q.shape
-        # xs = np.arange(-0.5, nX - 0.5, 1)
-        xs = np.arange(nX)
-        us = ("top", "right", "down", "left") if nU == 4 else ("right", "left")
-        for qu, u in zip(Q.t(), us, strict=True):
-            print(qu, xs)
-            ax.step(xs, qu, where="pre", label=f"Q(x, {u})")
-        ax.legend()
-
-    def display(self, values=None, cmap="Blues", ax=None, vmin=None, vmax=None):
+    def plot_values(mdp, values=None, cmap="viridis", ax=None, vmin=None, vmax=None):
         palette = np.array(
             [
                 [255, 255, 255],  # white
@@ -153,8 +141,8 @@ class MDP:
                 [255, 0, 0],  # red
             ]
         )
-        M = np.zeros_like(self.world, dtype=np.uint8)
-        M[self.world == "x"] = 1.0
+        M = np.zeros_like(mdp.world, dtype=np.uint8)
+        M[mdp.world == "x"] = 1.0
         # M[self.world=="G"] = 3
         # M[self.world=="S"] = 2
 
@@ -171,10 +159,10 @@ class MDP:
         im = ax.imshow(M_ma, cmap=cmap, vmin=vmin, vmax=vmax)
 
         # plot the goal
-        for y, x in self.goals_yx:
-            goal = self.world[y, x]
+        for y, x in mdp.goals_yx:
+            goal = mdp.world[y, x]
             ax.text(x, y, goal, ha="center", va="center", color="w")
-        for y, x in self.X0_yx:
+        for y, x in mdp.X0_yx:
             ax.text(x, y, "s", ha="center", va="center")
 
         if fig is not None:
@@ -189,6 +177,50 @@ class MDP:
 
             plt.colorbar(im, cax=cax)
             return None
+
+    @staticmethod
+    def qsa_lineplot(Q):
+        fig, ax = plt.subplots(figsize=(5, 3.75), layout="constrained")
+        nX, nU = Q.shape
+        # xs = np.arange(-0.5, nX - 0.5, 1)
+        xs = np.arange(nX)
+        us = ("top", "right", "down", "left") if nU == 4 else ("right", "left")
+        for qu, u in zip(Q.t(), us, strict=True):
+            print(qu, xs)
+            ax.step(xs, qu, where="pre", label=f"Q(x, {u})")
+        ax.legend()
+
+    @staticmethod
+    def plot_policy(mdp, π, V):
+        fig, ax = MDP.plot_values(mdp, values=V)
+        # action_names = [r"$\blacktriangle$", r"$\blacktriangleright$",
+        # r"$\blacktriangledown$", r"$\blacktriangleleft$"]
+        action_names = [
+            r"$\uparrow$",
+            r"$\rightarrow$",
+            r"$\downarrow$",
+            r"$\leftarrow$",
+        ]
+        offsets = [(-0.05, -0.2), (0.15, -0.05), (-0.05, 0.15), (-0.2, -0.05)]
+        for state_idx in mdp.X:
+            if mdp.is_goal(state_idx):
+                continue
+
+            y, x = mdp._x2yx[state_idx]
+            # plot argmax for all optimal actions
+            a_stars = np.flatnonzero(π[state_idx] == π[state_idx].max())
+            for aidx in a_stars:
+                action_glyph = action_names[aidx]
+                dx, dy = offsets[aidx]
+                ax.text(
+                    x + dx,
+                    y + dy,
+                    action_glyph,
+                    ha="center",
+                    va="center",
+                    fontsize="medium",
+                    color="black",
+                )
 
     def __repr__(self):
         s = "\n".join(["".join(line) for line in self.world])
